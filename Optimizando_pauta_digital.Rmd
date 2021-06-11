@@ -1,0 +1,231 @@
+---
+title: "Optimizando la pauta publicitaria"
+author: "Lina María Moreno <br/> Juan David Valencia<br/> Camilo Andrés Figueroa <br/> Joan Sebastian Jiménez <br/> **Universidad Nacional de Colombia - Sede Medellín <br/> Decisiones bajo incertidumbre (Optimización para aprendizaje de máquina)<br/> Repositorio del codigo: https://github.com/josjimenezja/optimizando_pauta_digitaln <br/><br/>Semestre 2021-01 **"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+#install.packages('fpc')
+#install.packages('tidyverse')
+#install.packages('factoextra')
+
+library(caTools)
+library(ggplot2)
+library(caret)
+library(cluster)
+library(fpc)
+library(tidyverse)
+library(factoextra)
+
+```
+
+## Planteamiento del problema 
+
+La plataforma digital de servicios QUIX desea atraer más usuarios. Para ello invertirá en pauta digital, permitiendo determinar las horas en la que las diferentes redes sociales tienen mayor afluencia de usuarios, con el fin de pautar los anuncios de la plataforma a los potenciales usuarios. Este prodecimeinto es de vital importancia ya que permite identificar los princiapales rangos horarios en los que se debe invertir el dinero, maximizando la exposición ante usuarios potenciales. 
+
+Se cuenta con una base de datos que hace referencia a la conexión de usuarios en un periodo de tiempo. Se desea extraer la información más relevante y eliminar los datos que no aportan información.
+
+
+```{r echo=FALSE}
+datos <- read.csv("datos_horas_conexion.csv", sep = ";")
+day<-as.Date(datos$Fecha.Consulta, format= '%d/%m/%y')
+mydate<- as.POSIXlt(day)
+weekDay<-mydate$wday
+mDay<-mydate$mday 
+
+hour <- strptime(datos$Fecha.Consulta, "%d/%m/%y %H:%M")
+hour <- as.numeric(format(hour, "%H")) + as.numeric(format(hour, "%M"))/60
+
+```
+
+## Exploración de los datos
+
+Podemos observar que, la base de datos se encuentra conformada por 5 variables, de las cuales Id_usuario, Calificadora y Correo no aportan información representativa para la solución de la problemática porpuesta, por lo tanto, se prodece a eliminarlas y a transformar la variable Fecha.Consulta, con el fin de crear nuevas variables temporales con relación al día y hora de conexión.  
+
+Examinamos la información disponible:
+
+```{r echo=FALSE}
+summary(datos)
+head(datos)
+```
+
+```{r echo=FALSE}
+datos<-data.frame(datos$Fecha.Consulta, weekDay, hour, datos$Estado.usuario)
+
+names(datos)<-c('Fecha consulta', 'dia', 'hora', 'Estado')
+head(datos)
+```
+
+ 
+## Análisis Exploratorío de los Datos.
+
+El objetivo principal de la actividad está basada en establecer el momento de mayor conexión de los usuarios en las redes sociales, buscando determinar qué día y hora de la semana existe un mayor tráfico de usuarios en la red social. Ahora bien, procederemos a evaluar estadásticamente la cantidad de personas conectadas por día y hora. Para ello, emplearemos inicialmente el Histograma de frecuencias.
+
+
+```{r echo=FALSE}
+
+hist(x = day, 
+     freq=T,
+     main = "Afluencia por fecha", 
+     breaks = "days",
+     col = rgb(1, 0, 0, alpha = 0.5),
+     xlab = "Fecha", ylab = "Frecuencia")
+     axis(1, col="black", side=1)
+     axis(2,col="black")
+```
+
+
+Primera fecha de recolección de los datos:
+```{r echo=FALSE}
+min(day)
+```
+
+Última fecha de recolección de los datos:
+```{r echo=FALSE}
+max(day)
+```
+
+La recolección de los datos ocurrió por un periodo de 36 días entre el 21/12/2020 y el 25/01/2021. El número de conexiones muestra una tendencia con distribución lognormal con la cola hacia la derecha, es decir, en los últimos días de diciembre hubo una muy baja conexión a la red social, mientras que en enero las conexiones fueron aumentando progresivamente hasta alcanzar su máximo en la tercera semana.
+
+A continuación, se procede a verificar el comportamiento de los datos bajo una ciclicidad semanal. 
+
+En la siguiente figura, se puede obsrvar que, los días lunes y martes presentan la mayor alfuencia semanal en la red social, siendo los mejores días para realizar la pauta digital. Los días jueves, viernes, sábado y domingo, la afluencia se ve reducida a un 13% aproximadamente. Además, para el día miércoles se evidencia una drástica caída del 66% en visitas con respecto a los días de mayor tráfico.
+
+```{r echo=FALSE}
+knitr::opts_chunk$set(warning = FALSE, message = FALSE) 
+
+ggplot(data.frame(weekDay), aes(x = weekDay)) + 
+  geom_histogram(color = "black", 
+                 fill = rgb(1, 0, 0, alpha = 0.5) ,
+                 binwidth = 0.5)+
+  scale_x_continuous( 
+    breaks=seq(0,6,1),
+    labels = c("Dom","Lun", "Mar","Mie","Jue","Vie","Sab"))+
+  xlab("")+
+  scale_y_continuous(name = "")+
+  ggtitle("Afluencia por día de la semana")+
+  theme(panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(), 
+        panel.background = element_blank(),
+        plot.title = element_text(hjust = 0.5))
+```
+Par evaluar el rango horario, se emplea una función básica de densidad, donde se puede observar que, el rango de hora con mayor conexión es de 6 pm a 11 pm, siendo las 9 pm la hora de mayor afluencia. En promedio, el número de personas conectadas por hora es de 168 personas, siendo el horario de la mañana de 1am a 9 am la de menor conexión.
+
+
+```{r echo=FALSE}
+knitr::opts_chunk$set(warning = FALSE, message = FALSE) 
+
+ggplot(data.frame(hour), aes(x = hour)) + 
+  geom_freqpoly(color = "black", size = 1.2)+   #geom_density
+  scale_y_continuous(name = "")+
+  ggtitle("Afluencia por hora")+
+  xlab("hora") + 
+  xlim(0,24)+
+  theme(panel.background = element_blank(),
+        panel.grid.major.y  = element_line(colour = "gray", size = (0.8)),
+          plot.title = element_text(hjust = 0.5)) #remueve la cuadrícula
+```
+
+## Análisis de los datos con el Algoritmo K-means.
+
+Para analizar la problemática propuesta con tecnicas más sofisticadas, se propone utilizar el algoritmo de clasificación no supervisada K-means, el cual busca agrupar objetos en k grupos diferentes con caractiristicas similares. Es decir, se busca agrupar las observaciones minimizando la suma de las distancias al cuadrado de cada obsrvación al centroide de cada cluster.
+
+```{r echo=FALSE}
+datos <- read.csv("datos_horas_conexion.csv", sep = ";", dec = ",")
+
+day<-as.Date(datos$Fecha.Consulta, format= '%d/%m/%y %H:%M')
+
+mydate<- as.POSIXlt(day)
+
+weekDay<-mydate$wday#Lunes a Domingo
+mDay<-mydate$mday#Día del mes
+yDay<-mydate$yday#Día del año
+hora<-format(strptime(datos$Fecha.Consulta,"%d/%m/%y %H:%M"), '%H')#Hora
+
+table(weekDay)
+#Para KNN no se pueden usar variables categoricas
+df_no_cat<-data.frame(weekDay, mDay, yDay, as.numeric(hora))
+head(df_no_cat)
+
+```
+
+La función kmeans() del paquete stats presenta como argumentos princiaples a: 
+* centers, el cual determina el número k de clusters que se van a generar
+* iter.max, representa el número de iteraciones que se realizarón.
+* nstart, corresponde al número de veces que se va a repetir el proceso iterativo. 
+
+La cantidad óptima de centroides k no se conoce de antemano, por lo que es necesario aplicar una técnica conocida como el Método del Codo, con el fin de determinar dicho valor. Básicamente, este método busca seleccionar la cantidad ideal de grupos a partir de la optimización de la WSS (Total Within Sum of Square).
+
+```{r}
+
+fviz_nbclust(data.frame(df_no_cat$as.numeric.hora.), kmeans, method = "silhouette")
+```
+
+
+```{r}
+fviz_nbclust(df_no_cat,kmeans, method = "wss",k.max=10,
+             diss = get_dist(df_no_cat, method = "euclidean"), nstart = 50)+
+labs(title= "Numero optimo de cluster") + 
+  xlab("k ") +
+  ylab("Suma de cuadrados internos (WSS)")
+```
+
+A partir de la curva obtenida anteriormente, podemos obsrvar que, a medida que se aumenta la cantidad de centroides k, el valor de WSS disminuye de tal forma que la gráfica adopta una forma de codo. Para seleccionar el valor óptimo de k, se escoje un valor en el cual ya no se aprecia variaciones considerables valor de WSS. En este caso, vemos que a partir de K=6 no se producen conmbios significativos, por lo que evaluaremos el algoritmo con esa cantidad de centroides. 
+
+
+```{r echo=FALSE}
+# Si se utiliza datos_kmeans es el data set con dia semana, dia mes y hora
+# si se utiliza datos_km son los datos con solo las horas
+
+set.seed(123)
+km_fullcat<- kmeans(df_no_cat[-3], centers = 6)
+
+```
+
+El objeto devuelto por la función kmeans() contiene:
+* la media de cada una de las variables para cada cluster (centers)
+* un vector indicando a que cluster se ha asignado cada observación (cluster)
+* la suma de cuadrados interna de cada cluster (withinss)
+* la suma total de cuadrados internos de todos los clusters (tot.withinss). 
+
+Al imprimir el resultado también se puede observar el cociente de la suma de cuadrados entre clusters dividido la suma de cuadrados totales. Este cociente es equivalente al R2 de los modelos de regresión, lo cual indica el porcentaje de varianza explicada por el modelo respecto al total de varianza observada.Para este caso, tenemos una varianza del 76.4% 
+
+Cabe mencionar que, al incrementar el número de predictores, el cociente between_SS / total_SS aumenta con el número de clusters creados. Por lo que es importante tenerlo en cuenta para evitar problemas de sobreajuste.
+
+Para el ejercicio propuesto, es de vital impotancia analizar los centroides y el tamaño de los clusters, ya que, para la pauta digital que se desea a proponer, buscamos e identificar aquellos clusters con mayor trafico de usuarios. 
+
+```{r}
+km_fullcat$centers
+
+km_fullcat$size
+```
+
+Congruentemente, el centroide #3 presenta mayor volumen de datos con 1381 registros. Por otro lado,  el segundo dia de la semana presenta mayor trafico de usuarios con 25.9 y la mejor hora para pautar es entre las 7 pm y 8 pm. La informacion es contundente con respecto al mejor rango horario para llevar a cabo la pauta publicitaria. 
+
+
+```{r}
+
+clusplot(df_no_cat, km_fullcat$cluster, color=TRUE, shade=TRUE, 
+         labels=2, lines=0, main='Cluster Plot')
+```
+
+
+
+## Resultados
+
+En conclusión, de acuerdo a los datos disponibles, se ha propuesto analizar la problematica desde un punto de vista descriptivo y analitico, con el fin de entregar una informacion detallada y solida. la compañía debería distribuir su presupuesto para la pauta en redes sociales entre lunes y martes de  7 pm a 11 pm, haciendo énfasis en las 9 pm.
+
+Debido la poca disponibilidad de los datos a través de los años, no podemos determinar una estacionalidad con el objetivo de definir cuál sería el mejor mes a invertir en pauta publicitaria.
+
+Otros datos que serían interesantes de evaluar es el tiempo de permanencia de los usuarios en la red, ya que por ejemplo la mayor conexión se da a las 9 pm, pero podría pasar que la hora pico a la que hay mayor cantidad de personas conectadas al mismo tiempo sean las 11 pm. 
+
+## Bibliografía
+
+https://stackoverflow.com/questions/10705328/extract-hours-and-seconds-from-posixct-for-plotting-purposes-in-r
+
+http://www.sthda.com/english/wiki/be-awesome-in-ggplot2-a-practical-guide-to-be-highly-effective-r-software-and-data-visualization
+
+https://ggplot2.tidyverse.org/reference/theme.html
+
+
+
