@@ -1,6 +1,6 @@
 ---
 title: "Optimizando la pauta publicitaria"
-author: "Lina María Moreno <br/> Juan David Valencia<br/> Camilo Andrés Figueroa <br/> Joan Sebastian Jiménez <br/> **Universidad Nacional de Colombia - Sede Medellín <br/> Decisiones bajo incertidumbre (Optimización para aprendizaje de máquina)<br/> Repositorio del codigo: https://github.com/josjimenezja/optimizando_pauta_digitaln <br/><br/>Semestre 2021-01 **"
+author: "Lina María Moreno <br/> Juan David Valencia<br/> Camilo Andrés Figueroa <br/> Joan Sebastian Jiménez <br/> **Universidad Nacional de Colombia - Sede Medellín <br/> Decisiones bajo incertidumbre (Optimización para aprendizaje de máquina)<br/> Repositorio del codigo: https://github.com/josjimenezja/optimizando_pauta_digital <br/><br/>Semestre 2021-01 **"
 output: html_document
 ---
 
@@ -200,7 +200,7 @@ km_fullcat$centers
 km_fullcat$size
 ```
 
-Congruentemente, el centroide #3 presenta mayor volumen de datos con 1381 registros. Por otro lado,  el segundo dia de la semana presenta mayor trafico de usuarios con 25.9 y la mejor hora para pautar es entre las 7 pm y 8 pm. La informacion es contundente con respecto al mejor rango horario para llevar a cabo la pauta publicitaria. 
+Congruentemente, el centroide #3 presenta el mayor tráfico con 1381 registros. Se puede asociar el centroide al día 2-3 y la hora a las 7 pm. Siendo lo anterior una propuesta interesante para pautar sobre el segmento con mayor tráfico. 
 
 
 ```{r}
